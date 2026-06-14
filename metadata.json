@@ -1,0 +1,6 @@
+{
+  "name": "식식메이트 AI",
+  "description": "전국 학교 급식 실시간 조회 및 인공지능 영양 대시보드 분석 서비스",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
