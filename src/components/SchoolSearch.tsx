@@ -42,7 +42,8 @@ export default function SchoolSearch({ onSelectSchool, addToast }: SchoolSearchP
     setShowPopover(true);
 
     try {
-      const response = await fetch(`/api/neis/schoolSearch?query=${encodeURIComponent(searchTerm)}`);
+      const url = `https://open.neis.go.kr/hub/schoolInfo?Type=json&KEY=6c514420a932447da193272417931121&pIndex=1&pSize=15&SCHUL_NM=${encodeURIComponent(searchTerm)}`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error("NEIS API 연결 장애 발생");
       const data = await response.json();
 
