@@ -16,6 +16,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { School, AIAnalysis, DayMeal, WeeklyMeal } from "../types";
+import { localNutritionalAnalysis } from "../utils/nutrition";
 
 interface MealAnalysisProps {
   school: School;
@@ -152,14 +153,21 @@ export default function MealAnalysis({ school, onBack, addToast }: MealAnalysisP
 
     const { ymd } = getFormattedDateAndYmd(currentWeekday, weekOffset);
     try {
-      const res = await fetch(`/api/neis/mealInfo?officeCode=${school.officeCode}&schoolCode=${school.schoolCode}&ymd=${ymd}`);
+      const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&KEY=6c514420a932447da193272417931121&ATPT_OFCDC_SC_CODE=${school.officeCode}&SD_SCHUL_CODE=${school.schoolCode}&MLSV_YMD=${ymd}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("NEIS API 연결 및 처리 장애");
       const data = await res.json();
 
       let activeLunch: DayMeal | null = null;
       let activeDinner: DayMeal | null = null;
 
-      const rows = data?.mealServiceDietInfo?.[1]?.row || [];
+      const info = data?.mealServiceDietInfo;
+      if (!info) {
+        const errMsg = data?.RESULT?.MESSAGE || "선택된 요일의 NEIS 급식 정보가 존재하지 않습니다.";
+        addToast(errMsg, "info");
+      }
+
+      const rows = info?.[1]?.row || [];
       rows.forEach((row: any) => {
         const mealCode = row.MMEAL_SC_CODE; // "1"=Breakfast, "2"=Lunch, "3"=Dinner
         const cleanedMenu = cleanMealName(row.DDISH_NM);
@@ -199,15 +207,20 @@ export default function MealAnalysis({ school, onBack, addToast }: MealAnalysisP
     const { fromYmd, toYmd } = getWeeklyDateRange(weekOffset);
 
     try {
-      // Fetch weekly info proxy
-      const res = await fetch(
-        `/api/neis/weeklyMealInfo?officeCode=${school.officeCode}&schoolCode=${school.schoolCode}&fromYmd=${fromYmd}&toYmd=${toYmd}`
-      );
+      // Fetch weekly info from NEIS directly
+      const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&KEY=6c514420a932447da193272417931121&ATPT_OFCDC_SC_CODE=${school.officeCode}&SD_SCHUL_CODE=${school.schoolCode}&MLSV_FROM_YMD=${fromYmd}&MLSV_TO_YMD=${toYmd}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("NEIS API 연결 실패");
       const data = await res.json();
 
       const mealsMap: Record<string, WeeklyMeal> = {};
-      const rows = data?.mealServiceDietInfo?.[1]?.row || [];
+      const info = data?.mealServiceDietInfo;
+      if (!info) {
+        const errMsg = data?.RESULT?.MESSAGE || "해당 주간의 급식 데이터가 존재하지 않습니다.";
+        console.warn(`Weekly Meal Info missing: ${errMsg}`);
+      }
+
+      const rows = info?.[1]?.row || [];
 
       rows.forEach((row: any) => {
         const dateYmd = row.MLSV_YMD;
@@ -237,17 +250,12 @@ export default function MealAnalysis({ school, onBack, addToast }: MealAnalysisP
   const analyzeMealNutrition = async (lunchMenu: string, dinnerMenu: string) => {
     setIsLoadingAnalysis(true);
     try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lunch: lunchMenu, dinner: dinnerMenu }),
-      });
-      if (!res.ok) throw new Error("분석 API 호출 실패");
-      const data: AIAnalysis = await res.json();
-      setAnalysis(data);
+      // Analyze the meals client-side locally using the optimized nutrition analyzer engine
+      const data = localNutritionalAnalysis(lunchMenu, dinnerMenu);
+      setAnalysis(data as any);
     } catch (err: any) {
       console.error(err);
-      addToast("AI 분석 패킷 전송 오류가 발생했습니다.", "error");
+      addToast("AI 분석 도중 오류가 발생했습니다.", "error");
     } finally {
       setIsLoadingAnalysis(false);
     }
